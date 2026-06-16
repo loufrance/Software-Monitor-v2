@@ -477,19 +477,22 @@
           })
         });
 
-        if (response.ok) {
+          if (response.ok) {
           button.parentElement.innerHTML = '<span class="status-badge status-WAIT">Wird aktualisiert...</span>';
         } else {
+          if (response.status === 401 || response.status === 403) {
+            localStorage.removeItem('github_token');
+          }
           alert('Fehler: ' + response.status);
           button.disabled = false;
           button.innerText = originalText;
         }
-      } catch (e) {
-        alert('Verbindungsfehler.');
-        button.disabled = false;
-        button.innerText = originalText;
+        } catch (e) {
+          alert('Verbindungsfehler.');
+          button.disabled = false;
+          button.innerText = originalText;
+        }
       }
-    }
 
     window.dispatchUpdate = dispatchUpdate;
 
