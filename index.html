@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Software Dashboard</title>
   <style>
-    :root {
-      color-scheme: dark;
-    }
+    :root { color-scheme: dark; }
     * { box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -17,18 +15,14 @@
       padding: 20px;
     }
     .container {
-      max-width: 1200px;
+      max-width: 1280px;
       margin: auto;
       background: #1e1e1e;
       padding: 30px;
       border-radius: 12px;
       box-shadow: 0 4px 30px rgba(0,0,0,0.5);
     }
-    h1 {
-      color: #ffffff;
-      margin-top: 0;
-      margin-bottom: 10px;
-    }
+    h1 { color: #ffffff; margin: 0 0 10px 0; }
     .subtitle {
       margin: 0 0 24px 0;
       color: #adb5bd;
@@ -56,9 +50,9 @@
     .status-OK { background-color: #1b4332; color: #75f0a0; }
     .status-UPDATE { background-color: #641220; color: #ffb3c1; border: 1px solid #801b2d; animation: pulse 2s infinite; }
     .status-NEU { background-color: #5e503f; color: #ffd60a; }
-    .status-FEHLT { background-color: #3a3a3a; color: #d0d0d0; }
+    .status-WAIT { background-color: #2b5797; color: #dbeafe; }
 
-    .cell-ist {
+    .cell-server {
       background: rgba(43, 87, 151, 0.14);
       border-left: 4px solid #4ea1ff;
     }
@@ -66,13 +60,8 @@
       background: rgba(212, 160, 23, 0.12);
       border-left: 4px solid #ffd60a;
     }
-
-    .column-head-ist {
-      color: #8fc2ff;
-    }
-    .column-head-intune {
-      color: #ffe27a;
-    }
+    .column-head-server { color: #8fc2ff; }
+    .column-head-intune { color: #ffe27a; }
 
     @keyframes pulse {
       0% { opacity: 1; }
@@ -97,36 +86,30 @@
       vertical-align: middle;
     }
     tr:hover { background-color: #2a2a2a; }
-    .btn-accept {
-      background-color: #2b5797;
-      color: white;
+    .btn-accept, .btn-add {
       border: none;
       padding: 6px 12px;
       border-radius: 4px;
       cursor: pointer;
       font-size: 0.8em;
-      margin-left: 10px;
       transition: background 0.3s;
+      font-weight: 600;
+    }
+    .btn-accept {
+      background-color: #2b5797;
+      color: white;
     }
     .btn-accept:hover { background-color: #3e78cc; }
-    .btn-accept:disabled {
+    .btn-add {
+      background-color: #d4a017;
+      color: black;
+    }
+    .btn-add:hover { background-color: #ffd60a; }
+    .btn-accept:disabled, .btn-add:disabled {
       background-color: #444;
       cursor: not-allowed;
       opacity: 0.5;
     }
-    .btn-add {
-      background-color: #d4a017;
-      color: black;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 0.8em;
-      margin-left: 10px;
-      font-weight: bold;
-      transition: background 0.3s;
-    }
-    .btn-add:hover { background-color: #ffd60a; }
     .progress-container {
       background: #333;
       border-radius: 10px;
@@ -140,10 +123,19 @@
       transition: width 1s;
       box-shadow: 0 0 10px rgba(74, 222, 128, 0.3);
     }
-    .intune-cell, .status-cell {
-      white-space: nowrap;
+    .version-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-start;
     }
-    .version-with-badge {
+    .version-line {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .action-line {
       display: inline-flex;
       align-items: center;
       gap: 8px;
@@ -181,7 +173,7 @@
         display: flex;
         justify-content: space-between;
         gap: 12px;
-        align-items: center;
+        align-items: flex-start;
       }
       td::before {
         content: attr(data-label);
@@ -195,13 +187,13 @@
 <body>
   <div class="container">
     <h1>Software Monitor</h1>
-    <p class="subtitle">Vergleich von AKTUELL, IST und INTUNE auf Basis der drei CSV-Dateien im Repository.</p>
+    <p class="subtitle">Vergleich von AKTUELL, SERVER und INTUNE auf Basis der drei CSV-Dateien im Repository.</p>
 
     <div id="errorBox" class="error-box"></div>
 
     <div class="info-bar">
       <span>Stand: <strong id="timestamp">wird geladen...</strong></span>
-      <span><span id="upToDateCount">0</span> von <span id="totalCount">0</span> Programmen aktuell</span>
+      <span><span id="upToDateCount">0</span> von <span id="totalCount">0</span> Programmen auf SERVER aktuell</span>
     </div>
 
     <div class="progress-container">
@@ -213,14 +205,13 @@
         <tr>
           <th>Programm</th>
           <th>AKTUELL</th>
-          <th class="column-head-ist">IST</th>
+          <th class="column-head-server">SERVER</th>
           <th class="column-head-intune">INTUNE</th>
-          <th>Status</th>
         </tr>
       </thead>
       <tbody id="softwareTableBody">
         <tr>
-          <td colspan="5" class="muted">Lade CSV-Daten...</td>
+          <td colspan="4" class="muted">Lade CSV-Daten...</td>
         </tr>
       </tbody>
     </table>
@@ -231,7 +222,7 @@
   <script>
     const CSV_FILES = {
       aktuell: './ProgrammlisteAKTUELL.csv',
-      ist: './ProgrammlisteIST.csv',
+      server: './ProgrammlisteIST.csv',
       intune: './ProgrammlisteINTUNE.csv'
     };
 
@@ -312,14 +303,9 @@
       return map;
     }
 
-    function getIstStatus(istVersion, aktuellVersion) {
-      if (!istVersion) return 'NEU';
-      return istVersion === aktuellVersion ? 'OK' : 'UPDATE';
-    }
-
-    function getIntuneStatus(intuneVersion, aktuellVersion) {
-      if (!intuneVersion) return 'NEU';
-      return intuneVersion === aktuellVersion ? 'OK' : 'UPDATE';
+    function getStatus(targetVersion, aktuellVersion) {
+      if (!targetVersion) return 'NEU';
+      return targetVersion === aktuellVersion ? 'OK' : 'UPDATE';
     }
 
     function renderBadge(status) {
@@ -330,40 +316,40 @@
       return version || '---';
     }
 
-    function renderStatusCell(row) {
-      let html = renderBadge(row.status);
-      if (row.status === 'UPDATE') {
-        html += ` <button class="btn-accept" onclick="acceptUpdate('${escapeHtml(row.programm)}', '${escapeHtml(row.aktuell)}')">Übernehmen</button>`;
-      } else if (row.status === 'NEU') {
-        html += ` <button class="btn-add" onclick="acceptUpdate('${escapeHtml(row.programm)}', '${escapeHtml(row.aktuell)}')">Hinzufügen</button>`;
+    function renderAction(status, program, aktuell, target) {
+      if (status === 'UPDATE') {
+        return `<button class="btn-accept" onclick="dispatchUpdate(event, '${escapeHtml(target)}', '${escapeHtml(program)}', '${escapeHtml(aktuell)}')">Übernehmen</button>`;
       }
-      return html;
+      if (status === 'NEU') {
+        return `<button class="btn-add" onclick="dispatchUpdate(event, '${escapeHtml(target)}', '${escapeHtml(program)}', '${escapeHtml(aktuell)}')">Hinzufügen</button>`;
+      }
+      return '';
     }
 
-    function buildRows(aktuellRows, istRows, intuneRows) {
+    function buildRows(aktuellRows, serverRows, intuneRows) {
       const aktuellMap = toMap(aktuellRows);
-      const istMap = toMap(istRows);
+      const serverMap = toMap(serverRows);
       const intuneMap = toMap(intuneRows);
 
       const programs = Array.from(new Set([
         ...aktuellMap.keys(),
-        ...istMap.keys(),
+        ...serverMap.keys(),
         ...intuneMap.keys()
       ])).sort((a, b) => a.localeCompare(b, 'de'));
 
       return programs.map(programm => {
         const aktuell = aktuellMap.get(programm)?.version || '';
-        const ist = istMap.get(programm)?.version || '';
+        const server = serverMap.get(programm)?.version || '';
         const intune = intuneMap.get(programm)?.version || '';
-        const status = getIstStatus(ist, aktuell);
-        const intuneStatus = getIntuneStatus(intune, aktuell);
+        const serverStatus = getStatus(server, aktuell);
+        const intuneStatus = getStatus(intune, aktuell);
 
         return {
           programm,
-          ist,
           aktuell,
+          server,
           intune,
-          status,
+          serverStatus,
           intuneStatus
         };
       });
@@ -371,7 +357,7 @@
 
     function updateSummary(rows) {
       const total = rows.length;
-      const upToDate = rows.filter(r => r.status === 'OK').length;
+      const upToDate = rows.filter(r => r.serverStatus === 'OK').length;
       const percent = total > 0 ? Math.round((upToDate / total) * 100) : 0;
 
       document.getElementById('totalCount').textContent = String(total);
@@ -388,24 +374,29 @@
       }) + ' Uhr';
     }
 
+    function renderManagedCell(version, status, program, aktuell, target, cellClass) {
+      return `
+        <div class="version-stack ${cellClass}">
+          <div class="version-line">
+            <span>${escapeHtml(formatVersion(version))}</span>
+            ${renderBadge(status)}
+          </div>
+          <div class="action-line">
+            ${renderAction(status, program, aktuell, target)}
+          </div>
+        </div>`;
+    }
+
     function renderTable(rows) {
       const tbody = document.getElementById('softwareTableBody');
-      tbody.innerHTML = rows.map(row => {
-        const intuneCell = `
-          <span class="version-with-badge">
-            <span>${escapeHtml(formatVersion(row.intune))}</span>
-            ${renderBadge(row.intuneStatus)}
-          </span>`;
-
-        return `
+      tbody.innerHTML = rows.map(row => `
           <tr>
             <td data-label="Programm">${escapeHtml(row.programm)}</td>
             <td data-label="AKTUELL">${escapeHtml(formatVersion(row.aktuell))}</td>
-            <td data-label="IST" class="cell-ist">${escapeHtml(formatVersion(row.ist))}</td>
-            <td data-label="INTUNE" class="intune-cell cell-intune">${intuneCell}</td>
-            <td data-label="Status" class="status-cell">${renderStatusCell(row)}</td>
-          </tr>`;
-      }).join('');
+            <td data-label="SERVER" class="cell-server">${renderManagedCell(row.server, row.serverStatus, row.programm, row.aktuell, 'server', '')}</td>
+            <td data-label="INTUNE" class="cell-intune">${renderManagedCell(row.intune, row.intuneStatus, row.programm, row.aktuell, 'intune', '')}</td>
+          </tr>`
+      ).join('');
     }
 
     function showError(message) {
@@ -414,8 +405,8 @@
       errorBox.textContent = message;
     }
 
-    async function acceptUpdate(softwareName, newVersion) {
-      const token = prompt('Bitte gib deinen GitHub Personal Access Token ein:');
+    async function dispatchUpdate(event, target, softwareName, newVersion) {
+      const token = prompt(`Bitte gib deinen GitHub Personal Access Token für ${target.toUpperCase()} ein:`);
       if (!token) return;
 
       const button = event.target;
@@ -434,8 +425,9 @@
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            event_type: 'update_software_csv',
+            event_type: target === 'intune' ? 'update_intune_csv' : 'update_server_csv',
             client_payload: {
+              target,
               name: softwareName,
               version: newVersion
             }
@@ -443,7 +435,7 @@
         });
 
         if (response.ok) {
-          button.parentElement.innerHTML = '<span class="status-badge status-OK" style="background-color: #2b5797;">Wird aktualisiert...</span>';
+          button.parentElement.innerHTML = '<span class="status-badge status-WAIT">Wird aktualisiert...</span>';
         } else {
           alert('Fehler: ' + response.status);
           button.disabled = false;
@@ -456,24 +448,24 @@
       }
     }
 
-    window.acceptUpdate = acceptUpdate;
+    window.dispatchUpdate = dispatchUpdate;
 
     async function init() {
       try {
-        const [aktuellRows, istRows, intuneRows] = await Promise.all([
+        const [aktuellRows, serverRows, intuneRows] = await Promise.all([
           loadCsv(CSV_FILES.aktuell),
-          loadCsv(CSV_FILES.ist),
+          loadCsv(CSV_FILES.server),
           loadCsv(CSV_FILES.intune)
         ]);
 
-        const rows = buildRows(aktuellRows, istRows, intuneRows);
+        const rows = buildRows(aktuellRows, serverRows, intuneRows);
         updateSummary(rows);
         renderTable(rows);
       } catch (error) {
         showError(error.message || 'Unbekannter Fehler beim Laden der CSV-Dateien.');
         document.getElementById('softwareTableBody').innerHTML = `
           <tr>
-            <td colspan="5" class="muted">Die Daten konnten nicht geladen werden.</td>
+            <td colspan="4" class="muted">Die Daten konnten nicht geladen werden.</td>
           </tr>`;
       }
     }
