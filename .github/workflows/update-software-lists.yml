@@ -1,0 +1,101 @@
+name: Update Software Lists
+
+on:
+  repository_dispatch:
+    types:
+      - update_server_csv
+      - update_intune_csv
+
+permissions:
+  contents: write
+
+jobs:
+  update-csv:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: CSV-Datei aktualisieren
+        env:
+          EVENT_TYPE: ${{ github.event.action }}
+          TARGET: ${{ github.event.client_payload.target }}
+          NAME: ${{ github.event.client_payload.name }}
+          VERSION: ${{ github.event.client_payload.version }}
+        run: |
+          python <<'PY'
+          import csv
+          import os
+          from pathlib import Path
+
+          event_type = os.environ["EVENT_TYPE"]
+          target = os.environ.get("TARGET", "").strip().lower()
+          name = os.environ["NAME"].strip()
+          version = os.environ["VERSION"].strip()
+
+          if event_type == "update_server_csv":
+              file_path = Path("ProgrammlisteIST.csv")
+          elif event_type == "update_intune_csv":
+              file_path = Path("ProgrammlisteINTUNE.csv")
+          else:
+              raise SystemExit(f"Unbekannter Event-Type: {event_type}")
+
+          rows = []
+          fieldnames = ["Programm", "Version"]
+
+          if file_path.exists():
+              with file_path.open("r", encoding="utf-8-sig", newline="") as f:
+                  reader = csv.DictReader(f, delimiter=';')
+                  if reader.fieldnames:
+                      fieldnames = reader.fieldnames
+                  rows = list(reader)
+
+          updated = False
+          for row in rows:
+              if row.get("Programm", "").strip() == name:
+                  row["Version"] = version
+                  updated = True
+                  break
+
+          if not updated:
+              new_row = {key: "" for key in fieldnames}
+              if "Programm" not in new_row:
+                  new_row["Programm"] = ""
+              if "Version" not in new_row:
+                  new_row["Version"] = ""
+              new_row["Programm"] = name
+              new_row["Version"] = version
+              rows.append(new_row)
+
+          rows = sorted(rows, key=lambda r: r.get("Programm", "").lower())
+
+          with file_path.open("w", encoding="utf-8", newline="") as f:
+              writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';', quoting=csv.QUOTE_ALL)
+              writer.writeheader()
+              writer.writerows(rows)
+
+          print(f"Aktualisiert: {file_path} | {name} -> {version}")
+          PY
+
+      - name: Änderungen committen
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add ProgrammlisteIST.csv ProgrammlisteINTUNE.csv
+
+          if git diff --cached --quiet; then
+            echo "Keine Änderungen zum Committen."
+            exit 0
+          fi
+
+          git commit -m "Update software list via dispatch"
+
+      - name: Änderungen pushen
+        run: git push
