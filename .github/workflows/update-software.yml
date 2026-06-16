@@ -1,0 +1,38 @@
+name: Update Software CSV
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 1"   # Montag 05:00 UTC
+
+permissions:
+  contents: write
+
+jobs:
+  update-software:
+    runs-on: windows-latest
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: PowerShell-Skript ausführen
+        shell: pwsh
+        run: |
+          ./update-software.ps1
+
+      - name: Änderungen committen
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add ProgrammlisteAKTUELL.csv
+
+          if (git diff --cached --quiet) {
+            Write-Host "Keine Änderungen an der CSV."
+          }
+          else {
+            git commit -m "Automatisches Update ProgrammlisteAKTUELL.csv"
+            git push
+          }
