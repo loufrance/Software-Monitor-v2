@@ -1,1 +1,466 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Software Dashboard</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #121212;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: auto;
+      background: #1e1e1e;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+    }
+    h1 {
+      color: #ffffff;
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      margin: 0 0 24px 0;
+      color: #adb5bd;
+      font-size: 0.95rem;
+    }
+    .info-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+      font-size: 0.9em;
+      color: #aaa;
+      flex-wrap: wrap;
+    }
+    .status-badge {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.85em;
+      font-weight: bold;
+      text-transform: uppercase;
+      display: inline-block;
+      white-space: nowrap;
+    }
+    .status-OK { background-color: #1b4332; color: #75f0a0; }
+    .status-UPDATE { background-color: #641220; color: #ffb3c1; border: 1px solid #801b2d; animation: pulse 2s infinite; }
+    .status-NEU { background-color: #5e503f; color: #ffd60a; }
+    .status-FEHLT { background-color: #3a3a3a; color: #d0d0d0; }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th {
+      background-color: #2d2d2d;
+      color: #ffffff;
+      text-align: left;
+      padding: 12px;
+      border-bottom: 2px solid #444;
+    }
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #333;
+      vertical-align: middle;
+    }
+    tr:hover { background-color: #2a2a2a; }
+    .btn-accept {
+      background-color: #2b5797;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8em;
+      margin-left: 10px;
+      transition: background 0.3s;
+    }
+    .btn-accept:hover { background-color: #3e78cc; }
+    .btn-accept:disabled {
+      background-color: #444;
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+    .btn-add {
+      background-color: #d4a017;
+      color: black;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8em;
+      margin-left: 10px;
+      font-weight: bold;
+      transition: background 0.3s;
+    }
+    .btn-add:hover { background-color: #ffd60a; }
+    .progress-container {
+      background: #333;
+      border-radius: 10px;
+      height: 12px;
+      margin: 15px 0 24px 0;
+      overflow: hidden;
+    }
+    .progress-bar {
+      background: #4ade80;
+      height: 100%;
+      transition: width 1s;
+      box-shadow: 0 0 10px rgba(74, 222, 128, 0.3);
+    }
+    .intune-cell, .status-cell {
+      white-space: nowrap;
+    }
+    .version-with-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .footer-note {
+      margin-top: 30px;
+      font-size: 0.8em;
+      color: #adb5bd;
+      text-align: center;
+    }
+    .error-box {
+      background: #641220;
+      color: #ffccd5;
+      border: 1px solid #801b2d;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 18px;
+      display: none;
+    }
+    .muted { color: #adb5bd; }
+    @media (max-width: 900px) {
+      body { padding: 12px; }
+      .container { padding: 18px; }
+      table, thead, tbody, th, td, tr { display: block; }
+      thead { display: none; }
+      tr {
+        background: #222;
+        margin-bottom: 14px;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      td {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+      }
+      td::before {
+        content: attr(data-label);
+        font-weight: 700;
+        color: #fff;
+        min-width: 90px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Software Monitor</h1>
+    <p class="subtitle">Vergleich von IST, AKTUELL und INTUNE auf Basis der drei CSV-Dateien im Repository.</p>
 
+    <div id="errorBox" class="error-box"></div>
+
+    <div class="info-bar">
+      <span>Stand: <strong id="timestamp">wird geladen...</strong></span>
+      <span><span id="upToDateCount">0</span> von <span id="totalCount">0</span> Programmen aktuell</span>
+    </div>
+
+    <div class="progress-container">
+      <div id="progressBar" class="progress-bar" style="width: 0%"></div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Programm</th>
+          <th>IST</th>
+          <th>AKTUELL</th>
+          <th>INTUNE</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="softwareTableBody">
+        <tr>
+          <td colspan="5" class="muted">Lade CSV-Daten...</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="footer-note">GitHub Actions Automatisierung</p>
+  </div>
+
+  <script>
+    const CSV_FILES = {
+      aktuell: './ProgrammlisteAKTUELL.csv',
+      ist: './ProgrammlisteIST.csv',
+      intune: './ProgrammlisteINTUNE.csv'
+    };
+
+    function normalizeValue(value) {
+      return (value ?? '').toString().trim();
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function parseCsv(text) {
+      const lines = text.trim().split(/\r?\n/).filter(Boolean);
+      if (!lines.length) return [];
+
+      const parseLine = (line) => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          const next = line[i + 1];
+
+          if (char === '"') {
+            if (inQuotes && next === '"') {
+              current += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === ';' && !inQuotes) {
+            result.push(current);
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+
+        result.push(current);
+        return result.map(v => v.trim());
+      };
+
+      const headers = parseLine(lines[0]).map(h => h.replace(/^"|"$/g, '').trim());
+
+      return lines.slice(1).map(line => {
+        const values = parseLine(line).map(v => v.replace(/^"|"$/g, '').trim());
+        const obj = {};
+        headers.forEach((header, index) => {
+          obj[header] = values[index] ?? '';
+        });
+        return obj;
+      });
+    }
+
+    async function loadCsv(path) {
+      const response = await fetch(path, { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error(`Datei konnte nicht geladen werden: ${path} (${response.status})`);
+      }
+      return parseCsv(await response.text());
+    }
+
+    function toMap(rows) {
+      const map = new Map();
+      rows.forEach(row => {
+        const program = normalizeValue(row.Programm);
+        const version = normalizeValue(row.Version);
+        const bemerkung = normalizeValue(row.Bemerkung);
+        if (!program) return;
+        map.set(program, { version, bemerkung });
+      });
+      return map;
+    }
+
+    function getIstStatus(istVersion, aktuellVersion) {
+      if (!istVersion) return 'NEU';
+      return istVersion === aktuellVersion ? 'OK' : 'UPDATE';
+    }
+
+    function getIntuneStatus(intuneVersion, aktuellVersion) {
+      if (!intuneVersion) return 'NEU';
+      return intuneVersion === aktuellVersion ? 'OK' : 'UPDATE';
+    }
+
+    function renderBadge(status) {
+      return `<span class="status-badge status-${escapeHtml(status)}">${escapeHtml(status)}</span>`;
+    }
+
+    function formatVersion(version) {
+      return version || '---';
+    }
+
+    function renderStatusCell(row) {
+      let html = renderBadge(row.status);
+      if (row.status === 'UPDATE') {
+        html += ` <button class="btn-accept" onclick="acceptUpdate('${escapeHtml(row.programm)}', '${escapeHtml(row.aktuell)}')">Übernehmen</button>`;
+      } else if (row.status === 'NEU') {
+        html += ` <button class="btn-add" onclick="acceptUpdate('${escapeHtml(row.programm)}', '${escapeHtml(row.aktuell)}')">Hinzufügen</button>`;
+      }
+      return html;
+    }
+
+    function buildRows(aktuellRows, istRows, intuneRows) {
+      const aktuellMap = toMap(aktuellRows);
+      const istMap = toMap(istRows);
+      const intuneMap = toMap(intuneRows);
+
+      const programs = Array.from(new Set([
+        ...aktuellMap.keys(),
+        ...istMap.keys(),
+        ...intuneMap.keys()
+      ])).sort((a, b) => a.localeCompare(b, 'de'));
+
+      return programs.map(programm => {
+        const aktuell = aktuellMap.get(programm)?.version || '';
+        const ist = istMap.get(programm)?.version || '';
+        const intune = intuneMap.get(programm)?.version || '';
+        const status = getIstStatus(ist, aktuell);
+        const intuneStatus = getIntuneStatus(intune, aktuell);
+
+        return {
+          programm,
+          ist,
+          aktuell,
+          intune,
+          status,
+          intuneStatus
+        };
+      });
+    }
+
+    function updateSummary(rows) {
+      const total = rows.length;
+      const upToDate = rows.filter(r => r.status === 'OK').length;
+      const percent = total > 0 ? Math.round((upToDate / total) * 100) : 0;
+
+      document.getElementById('totalCount').textContent = String(total);
+      document.getElementById('upToDateCount').textContent = String(upToDate);
+      document.getElementById('progressBar').style.width = `${percent}%`;
+
+      const now = new Date();
+      document.getElementById('timestamp').textContent = now.toLocaleString('de-AT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }) + ' Uhr';
+    }
+
+    function renderTable(rows) {
+      const tbody = document.getElementById('softwareTableBody');
+      tbody.innerHTML = rows.map(row => {
+        const intuneCell = `
+          <span class="version-with-badge">
+            <span>${escapeHtml(formatVersion(row.intune))}</span>
+            ${renderBadge(row.intuneStatus)}
+          </span>`;
+
+        return `
+          <tr>
+            <td data-label="Programm">${escapeHtml(row.programm)}</td>
+            <td data-label="IST">${escapeHtml(formatVersion(row.ist))}</td>
+            <td data-label="AKTUELL">${escapeHtml(formatVersion(row.aktuell))}</td>
+            <td data-label="INTUNE" class="intune-cell">${intuneCell}</td>
+            <td data-label="Status" class="status-cell">${renderStatusCell(row)}</td>
+          </tr>`;
+      }).join('');
+    }
+
+    function showError(message) {
+      const errorBox = document.getElementById('errorBox');
+      errorBox.style.display = 'block';
+      errorBox.textContent = message;
+    }
+
+    async function acceptUpdate(softwareName, newVersion) {
+      const token = prompt('Bitte gib deinen GitHub Personal Access Token ein:');
+      if (!token) return;
+
+      const button = event.target;
+      const originalText = button.innerText;
+      button.disabled = true;
+      button.innerText = '...';
+
+      const url = 'https://api.github.com/repos/loufrance/Software-Monitor/dispatches';
+
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            event_type: 'update_software_csv',
+            client_payload: {
+              name: softwareName,
+              version: newVersion
+            }
+          })
+        });
+
+        if (response.ok) {
+          button.parentElement.innerHTML = '<span class="status-badge status-OK" style="background-color: #2b5797;">Wird aktualisiert...</span>';
+        } else {
+          alert('Fehler: ' + response.status);
+          button.disabled = false;
+          button.innerText = originalText;
+        }
+      } catch (e) {
+        alert('Verbindungsfehler.');
+        button.disabled = false;
+        button.innerText = originalText;
+      }
+    }
+
+    window.acceptUpdate = acceptUpdate;
+
+    async function init() {
+      try {
+        const [aktuellRows, istRows, intuneRows] = await Promise.all([
+          loadCsv(CSV_FILES.aktuell),
+          loadCsv(CSV_FILES.ist),
+          loadCsv(CSV_FILES.intune)
+        ]);
+
+        const rows = buildRows(aktuellRows, istRows, intuneRows);
+        updateSummary(rows);
+        renderTable(rows);
+      } catch (error) {
+        showError(error.message || 'Unbekannter Fehler beim Laden der CSV-Dateien.');
+        document.getElementById('softwareTableBody').innerHTML = `
+          <tr>
+            <td colspan="5" class="muted">Die Daten konnten nicht geladen werden.</td>
+          </tr>`;
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
