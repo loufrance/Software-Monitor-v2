@@ -57,6 +57,23 @@
     .status-UPDATE { background-color: #641220; color: #ffb3c1; border: 1px solid #801b2d; animation: pulse 2s infinite; }
     .status-NEU { background-color: #5e503f; color: #ffd60a; }
     .status-FEHLT { background-color: #3a3a3a; color: #d0d0d0; }
+
+    .cell-ist {
+      background: rgba(43, 87, 151, 0.14);
+      border-left: 4px solid #4ea1ff;
+    }
+    .cell-intune {
+      background: rgba(212, 160, 23, 0.12);
+      border-left: 4px solid #ffd60a;
+    }
+
+    .column-head-ist {
+      color: #8fc2ff;
+    }
+    .column-head-intune {
+      color: #ffe27a;
+    }
+
     @keyframes pulse {
       0% { opacity: 1; }
       50% { opacity: 0.5; }
@@ -148,6 +165,7 @@
       display: none;
     }
     .muted { color: #adb5bd; }
+
     @media (max-width: 900px) {
       body { padding: 12px; }
       .container { padding: 18px; }
@@ -177,7 +195,7 @@
 <body>
   <div class="container">
     <h1>Software Monitor</h1>
-    <p class="subtitle">Vergleich von IST, AKTUELL und INTUNE auf Basis der drei CSV-Dateien im Repository.</p>
+    <p class="subtitle">Vergleich von AKTUELL, IST und INTUNE auf Basis der drei CSV-Dateien im Repository.</p>
 
     <div id="errorBox" class="error-box"></div>
 
@@ -194,9 +212,9 @@
       <thead>
         <tr>
           <th>Programm</th>
-          <th>IST</th>
           <th>AKTUELL</th>
-          <th>INTUNE</th>
+          <th class="column-head-ist">IST</th>
+          <th class="column-head-intune">INTUNE</th>
           <th>Status</th>
         </tr>
       </thead>
@@ -382,9 +400,9 @@
         return `
           <tr>
             <td data-label="Programm">${escapeHtml(row.programm)}</td>
-            <td data-label="IST">${escapeHtml(formatVersion(row.ist))}</td>
             <td data-label="AKTUELL">${escapeHtml(formatVersion(row.aktuell))}</td>
-            <td data-label="INTUNE" class="intune-cell">${intuneCell}</td>
+            <td data-label="IST" class="cell-ist">${escapeHtml(formatVersion(row.ist))}</td>
+            <td data-label="INTUNE" class="intune-cell cell-intune">${intuneCell}</td>
             <td data-label="Status" class="status-cell">${renderStatusCell(row)}</td>
           </tr>`;
       }).join('');
