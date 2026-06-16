@@ -15,7 +15,7 @@
       padding: 20px;
     }
     .container {
-      max-width: 1280px;
+      max-width: 1320px;
       margin: auto;
       background: #1e1e1e;
       padding: 30px;
@@ -33,7 +33,7 @@
       justify-content: space-between;
       align-items: center;
       gap: 16px;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
       font-size: 0.9em;
       color: #aaa;
       flex-wrap: wrap;
@@ -68,10 +68,12 @@
       50% { opacity: 0.5; }
       100% { opacity: 1; }
     }
+
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 10px;
+      table-layout: fixed;
     }
     th {
       background-color: #2d2d2d;
@@ -86,6 +88,7 @@
       vertical-align: middle;
     }
     tr:hover { background-color: #2a2a2a; }
+
     .btn-accept, .btn-add {
       border: none;
       padding: 6px 12px;
@@ -94,6 +97,8 @@
       font-size: 0.8em;
       transition: background 0.3s;
       font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     .btn-accept {
       background-color: #2b5797;
@@ -110,6 +115,7 @@
       cursor: not-allowed;
       opacity: 0.5;
     }
+
     .progress-container {
       background: #333;
       border-radius: 10px;
@@ -123,24 +129,36 @@
       transition: width 1s;
       box-shadow: 0 0 10px rgba(74, 222, 128, 0.3);
     }
+
     .version-stack {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
       align-items: flex-start;
+      width: 100%;
     }
     .version-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: nowrap;
+      width: 100%;
+    }
+    .version-main {
       display: inline-flex;
       align-items: center;
       gap: 8px;
+      min-width: 0;
       flex-wrap: wrap;
     }
     .action-line {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
     }
+
     .footer-note {
       margin-top: 30px;
       font-size: 0.8em;
@@ -181,6 +199,10 @@
         color: #fff;
         min-width: 90px;
       }
+      .version-line {
+        flex-direction: column;
+        align-items: flex-start;
+      }
     }
   </style>
 </head>
@@ -193,7 +215,10 @@
 
     <div class="info-bar">
       <span>Stand: <strong id="timestamp">wird geladen...</strong></span>
-      <span><span id="upToDateCount">0</span> von <span id="totalCount">0</span> Programmen auf SERVER aktuell</span>
+      <span><span id="serverUpToDateCount">0</span> von <span id="totalCount">0</span> Programmen auf SERVER aktuell</span>
+    </div>
+    <div class="info-bar">
+      <span><span id="intuneUpToDateCount">0</span> von <span id="totalCountSecondary">0</span> Programmen auf INTUNE aktuell</span>
     </div>
 
     <div class="progress-container">
@@ -201,6 +226,12 @@
     </div>
 
     <table>
+      <colgroup>
+        <col style="width: 34%;">
+        <col style="width: 18%;">
+        <col style="width: 24%;">
+        <col style="width: 24%;">
+      </colgroup>
       <thead>
         <tr>
           <th>Programm</th>
@@ -357,11 +388,14 @@
 
     function updateSummary(rows) {
       const total = rows.length;
-      const upToDate = rows.filter(r => r.serverStatus === 'OK').length;
-      const percent = total > 0 ? Math.round((upToDate / total) * 100) : 0;
+      const serverUpToDate = rows.filter(r => r.serverStatus === 'OK').length;
+      const intuneUpToDate = rows.filter(r => r.intuneStatus === 'OK').length;
+      const percent = total > 0 ? Math.round((serverUpToDate / total) * 100) : 0;
 
       document.getElementById('totalCount').textContent = String(total);
-      document.getElementById('upToDateCount').textContent = String(upToDate);
+      document.getElementById('totalCountSecondary').textContent = String(total);
+      document.getElementById('serverUpToDateCount').textContent = String(serverUpToDate);
+      document.getElementById('intuneUpToDateCount').textContent = String(intuneUpToDate);
       document.getElementById('progressBar').style.width = `${percent}%`;
 
       const now = new Date();
@@ -375,14 +409,18 @@
     }
 
     function renderManagedCell(version, status, program, aktuell, target, cellClass) {
+      const action = renderAction(status, program, aktuell, target);
+
       return `
         <div class="version-stack ${cellClass}">
           <div class="version-line">
-            <span>${escapeHtml(formatVersion(version))}</span>
-            ${renderBadge(status)}
-          </div>
-          <div class="action-line">
-            ${renderAction(status, program, aktuell, target)}
+            <div class="version-main">
+              <span>${escapeHtml(formatVersion(version))}</span>
+              ${renderBadge(status)}
+            </div>
+            <div class="action-line">
+              ${action}
+            </div>
           </div>
         </div>`;
     }
@@ -390,13 +428,12 @@
     function renderTable(rows) {
       const tbody = document.getElementById('softwareTableBody');
       tbody.innerHTML = rows.map(row => `
-          <tr>
-            <td data-label="Programm">${escapeHtml(row.programm)}</td>
-            <td data-label="AKTUELL">${escapeHtml(formatVersion(row.aktuell))}</td>
-            <td data-label="SERVER" class="cell-server">${renderManagedCell(row.server, row.serverStatus, row.programm, row.aktuell, 'server', '')}</td>
-            <td data-label="INTUNE" class="cell-intune">${renderManagedCell(row.intune, row.intuneStatus, row.programm, row.aktuell, 'intune', '')}</td>
-          </tr>`
-      ).join('');
+        <tr>
+          <td data-label="Programm">${escapeHtml(row.programm)}</td>
+          <td data-label="AKTUELL">${escapeHtml(formatVersion(row.aktuell))}</td>
+          <td data-label="SERVER" class="cell-server">${renderManagedCell(row.server, row.serverStatus, row.programm, row.aktuell, 'server', '')}</td>
+          <td data-label="INTUNE" class="cell-intune">${renderManagedCell(row.intune, row.intuneStatus, row.programm, row.aktuell, 'intune', '')}</td>
+        </tr>`).join('');
     }
 
     function showError(message) {
