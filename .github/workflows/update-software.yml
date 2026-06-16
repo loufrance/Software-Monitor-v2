@@ -3,7 +3,7 @@ name: Update Software CSV
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 5 * * 1"   # Montag 05:00 UTC
+    - cron: "0 * * * *"
 
 permissions:
   contents: write
