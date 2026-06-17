@@ -566,21 +566,42 @@ try {
     $IrfanVersion = $null
 
     $IrfanUrl = "https://www.irfanview.com/"
-    $IrfanResponse = Invoke-WebRequest -Uri $IrfanUrl -UseBasicParsing -UserAgent "Mozilla/5.0"
+    $Headers = @{
+        "User-Agent"      = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+        "Accept"          = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        "Accept-Language" = "de-DE,de;q=0.9,en;q=0.8"
+        "Accept-Encoding" = "gzip, deflate, br"
+        "Cache-Control"   = "no-cache"
+        "Pragma"          = "no-cache"
+    }
 
-    if ($IrfanResponse.Content -match '(?:Current version|Version)\s+([\d\.]+)') {
-        $IrfanVersion = $Matches[1]
-        Write-To-ProgramList -Name "IrfanView" -Version $IrfanVersion -Bemerkung "Quelle: irfanview.com"
-        Write-Host " [OK: $IrfanVersion]" -ForegroundColor Green
+    $IrfanResponse = Invoke-WebRequest -Uri $IrfanUrl -Headers $Headers -Method Get -MaximumRedirection 5
+
+    if ($IrfanResponse.StatusCode -eq 200) {
+        if ($IrfanResponse.Content -match 'version\s+([\d]+(?:\.[\d]+)+)') {
+            $IrfanVersion = $Matches[1]
+            Write-To-ProgramList -Name "IrfanView" -Version $IrfanVersion -Bemerkung "Quelle: irfanview.com"
+            Write-Host " [OK: $IrfanVersion]" -ForegroundColor Green
+        }
+        else {
+            Write-Host " [FEHLER]" -ForegroundColor Red
+            Write-Warning "IrfanView-Version konnte nicht gefunden werden."
+        }
     }
     else {
         Write-Host " [FEHLER]" -ForegroundColor Red
-        Write-Warning " IrfanView Version konnte auf der Webseite nicht gefunden werden."
+        Write-Warning "HTTP-Status: $($IrfanResponse.StatusCode)"
     }
 }
 catch {
     Write-Host " [FEHLER]" -ForegroundColor Red
-    Write-Warning " Fehler bei IrfanView: $($_.Exception.Message)"
+    Write-Warning "Fehler bei IrfanView: $($_.Exception.Message)"
+    if ($_.Exception.Response) {
+        try {
+            $status = [int]$_.Exception.Response.StatusCode
+            Write-Warning "HTTP-Status: $status"
+        } catch {}
+    }
 }
 
 # --- 22. AUDACITY (GITHUB API) ---
