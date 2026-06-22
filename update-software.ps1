@@ -419,29 +419,35 @@ catch {
 
 # --- 16. LYNX WHITEBOARD (GOOGLE PLAY STORE QUELLE) ---
 try {
-    Write-Host "LYNX Whiteboard..." -NoNewline
-    $Matches = $null
+    Write-Host "LYNX Whiteboard... " -NoNewline
+    
+    # Variablen-Reset
     $LynxVersion = $null
 
-    $LynxUrl = "https://play.google.com/store/apps/details?id=com.clevertouch.lynx&hl=de"
-    $LynxResponse = Invoke-WebRequest -Uri $LynxUrl -UseBasicParsing -UserAgent "Mozilla/5.0"
-
-    $Pattern = '8\.\d+\.\d+(?:\.\d+)?'
-    $AllMatches = [regex]::Matches($LynxResponse.Content, $Pattern)
-
-    if ($AllMatches.Count -gt 0) {
-        $LynxVersion = $AllMatches.Value | Sort-Object { [version]$_ } -Descending | Select-Object -First 1
-        Write-To-ProgramList -Name "LYNX Whiteboard" -Version $LynxVersion -Bemerkung "Quelle: Google Play Store"
-        Write-Host " [OK: $LynxVersion]" -ForegroundColor Green
-    }
+    # Die direkte API-URL, die du gefunden hast
+    $ApiUrl = "https://api.lynxcloud.app/user/get-lynx-versions"
+    
+    # JSON abrufen (Invoke-RestMethod wandelt es automatisch um)
+    $Response = Invoke-RestMethod -Uri $ApiUrl -Method Get -UserAgent "Mozilla/5.0"
+    
+    # Wir greifen auf die Windows-Liste zu, suchen den Eintrag "LYNX Whiteboard" und lesen die Version aus
+    $LynxNode = $Response.windows | Where-Object { $_.name -eq "LYNX Whiteboard" }
+    
+    if ($LynxNode -and $LynxNode.version) {
+        $LynxVersion = $LynxNode.version
+        
+        # Deine Speicher-Funktion
+        Write-To-ProgramList -Name "LYNX Whiteboard" -Version $LynxVersion -Bemerkung "Quelle: LYNX API"
+        
+        Write-Host "[OK: $LynxVersion]" -ForegroundColor Green
+    } 
     else {
-        Write-Host " [FEHLER]" -ForegroundColor Red
-        Write-Warning " LYNX Version konnte im Play Store nicht identifiziert werden."
+        Write-Host "[FEHLER]" -ForegroundColor Red
+        Write-Warning "LYNX Whiteboard wurde im Windows-Array der API nicht gefunden."
     }
-}
-catch {
-    Write-Host " [FEHLER]" -ForegroundColor Red
-    Write-Warning " Fehler bei LYNX Whiteboard: $($_.Exception.Message)"
+} catch { 
+    Write-Host "[FEHLER]" -ForegroundColor Red
+    Write-Warning "Fehler bei LYNX Whiteboard: $($_.Exception.Message)" 
 }
 
 # --- 17. OPENBOARD (GITHUB API) ---
