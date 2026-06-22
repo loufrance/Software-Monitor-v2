@@ -59,7 +59,7 @@ function Write-To-ProgramList {
 }
 
 # ============================================================
-# --- HIER DEINE SOFTWARE-ABFRAGEN (Chrome, Firefox, etc.) ---
+# --- SOFTWARE-ABFRAGEN (Chrome, Firefox, etc.) ---
 # ============================================================
 
 # --- 1. GOOGLE CHROME ENTERPRISE (API) ---
@@ -90,24 +90,38 @@ catch {
 
 # --- 3. ADOBE ACROBAT READER (WINGET SOURCE) ---
 try {
-    Write-Host "Adobe Reader DC (Winget)..." -NoNewline
+    Write-Host "Adobe Reader DC..." -NoNewline
 
-    $WingetInfo = winget show --id Adobe.Acrobat.Reader.64-bit --source winget --accept-source-agreements | Select-String "Version:"
+    # Variablen-Reset für sauberen Durchlauf
+    $AdobeVersion = $null
 
-    if ($WingetInfo) {
-        $AdobeVersion = $WingetInfo.ToString().Split()[-1].Trim()
-        Write-To-ProgramList -Name "Adobe Acrobat Reader" -Version $AdobeVersion -Bemerkung "Quelle: Windows Package Manager (Winget)"
-        Write-Host " [OK: $AdobeVersion]" -ForegroundColor Green
+    # Die versteckte API-URL der Enterprise-Seite (Windows 11, MUI-Version)
+    $ApiUrl = "https://rdc.adobe.io/reader/products?lang=mui&site=enterprise&os=Windows%2011&api_key=dc-get-adobereader-cdn"
+    
+    # Adobe erwartet den öffentlichen API-Key zwingend im Header
+    $Headers = @{
+        "x-api-key" = "dc-get-adobereader-cdn"
     }
-    else {
-        $WingetInfo = winget show --id Adobe.Acrobat.Reader.32-bit --source winget | Select-String "Version:"
-        $AdobeVersion = $WingetInfo.ToString().Split()[-1].Trim()
-        Write-To-ProgramList -Name "Adobe Acrobat Reader" -Version $AdobeVersion -Bemerkung "Quelle: Winget (32-Bit)"
+
+    # Schnelle JSON-Abfrage (ersetzt den langsamen Winget-Aufruf)
+    $Response = Invoke-RestMethod -Uri $ApiUrl -Method Get -Headers $Headers
+    
+    # Navigiere durch die JSON-Struktur zum aktuellsten Eintrag
+    $AdobeVersion = $Response.products.reader[0].version
+    
+    if ($AdobeVersion) {
+        # Speichern in deiner eigenen Liste
+        Write-To-ProgramList -Name "Adobe Acrobat Reader" -Version $AdobeVersion -Bemerkung "Quelle: Adobe Enterprise API"
+        
         Write-Host " [OK: $AdobeVersion]" -ForegroundColor Green
+    } else {
+        Write-Host " [FEHLER]" -ForegroundColor Red
+        Write-Warning " Version konnte im Adobe JSON nicht ausgelesen werden."
     }
-}
-catch {
-    Write-Warning " Fehler bei Adobe Reader (Winget): $($_.Exception.Message)"
+
+} catch {
+    Write-Host " [FEHLER]" -ForegroundColor Red
+    Write-Warning " Fehler bei Adobe Reader (JSON API): $($_.Exception.Message)"
 }
 
 # --- 4. ADOBE AIR (CHOCOLATEY) ---
