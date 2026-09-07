@@ -227,25 +227,38 @@ catch {
 # --- 8. LEGO MINDSTORMS EV3 CLASSROOM (APPLE STORE) ---
 try {
     Write-Host "Lego EV3 Classroom..." -NoNewline
+    
     $Matches = $null
     $LegoVersion = $null
 
-    $LegoUrl = "https://apps.apple.com/us/app/ev3-classroom-lego-education/id1502412247"
-    $LegoResponse = Invoke-WebRequest -Uri $LegoUrl -UseBasicParsing
+    $LegoUrl = "https://education.lego.com/page-data/de-de/downloads/mindstorms-ev3/software/page-data.json"
+    $headers = @{
+        "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
 
-    if ($LegoResponse.Content -match '(?s)Version History.*?(?<!\d)(\d+\.\d+\.\d+)') {
+    # JSON abrufen
+    $response = Invoke-RestMethod -Uri $LegoUrl -Headers $headers -Method Get
+    $jsonRaw = $response | ConvertTo-Json -Depth 20
+
+    # Gezielt nach der MSI-Datei von EV3 Classroom suchen und die Version direkt dort greifen:
+    if ($jsonRaw -match 'EV3_Classroom_Windows_(\d+\.\d+\.\d+)_Global\.msi') {
         $LegoVersion = $Matches[1]
-        Write-To-ProgramList -Name "Lego Mindstorms EV3 Classroom" -Version $LegoVersion -Bemerkung "Quelle: Apple App Store (Proxy)"
+    }
+    # Fallback: Sucht den Block "MINDSTORMS EV3 Classroom Windows" und liest das zugehörige "version":"..." aus
+    elseif ($jsonRaw -match 'EV3 Classroom Windows.*?version"\s*:\s*"([^"]+)"') {
+        $LegoVersion = $Matches[1]
+    }
+
+    if ($LegoVersion) {
+        Write-To-ProgramList -Name "Lego Mindstorms EV3 Classroom" -Version $LegoVersion -Bemerkung "Quelle: LEGO Education"
         Write-Host " [OK: $LegoVersion]" -ForegroundColor Green
-    }
-    else {
+    } else {
         Write-Host " [FEHLER]" -ForegroundColor Red
-        Write-Warning " Version konnte im App Store Quelltext nicht gefunden werden."
+        Write-Warning " EV3 Classroom Version für Windows konnte nicht im JSON isoliert werden."
     }
-}
-catch {
+} catch { 
     Write-Host " [FEHLER]" -ForegroundColor Red
-    Write-Warning " Fehler bei Lego: $($_.Exception.Message)"
+    Write-Warning " Fehler bei Lego: $($_.Exception.Message)" 
 }
 
 # --- 9. WORKSHEET CRAFTER (OFFIZIELLE DOWNLOAD-SEITE) ---
