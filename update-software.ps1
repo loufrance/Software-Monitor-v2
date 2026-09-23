@@ -386,29 +386,63 @@ catch {
     Write-Warning " Fehler bei VLC: $($_.Exception.Message)"
 }
 
-# --- 14. LEGO SPIKE APP (LEGO EDUCATION RELEASE NOTES) ---
+# --- 14. LEGO SPIKE APP ---
 try {
     Write-Host "Lego SPIKE App..." -NoNewline
+
+    # Variablen-Reset
     $Matches = $null
     $SpikeVersion = $null
 
-    $SpikeUrl = "https://legoeducation.atlassian.net/servicedesk/customer/article/38611681568"
-    $SpikeResponse = Invoke-WebRequest -Uri $SpikeUrl -UseBasicParsing -UserAgent "Mozilla/5.0"
+    $SpikeUrl = "https://education.lego.com/page-data/de-de/downloads/spike-app/software/page-data.json"
 
-    if ($SpikeResponse.Content -match 'SPIKE.*?App.*?version\s+(\d+\.\d+\.\d+)' -or
-        $SpikeResponse.Content -match 'version\s+(\d+\.\d+\.\d+)') {
+    $headers = @{
+        "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        "Accept"     = "application/json, text/plain, */*"
+        "Referer"    = "https://education.lego.com/de-de/downloads/spike-app/software"
+    }
+
+    # Wichtig: WebRequest verwenden, damit .Content der rohe JSON-Text bleibt
+    $SpikeResponse = Invoke-WebRequest `
+        -Uri $SpikeUrl `
+        -Headers $headers `
+        -Method Get `
+        -UseBasicParsing `
+        -ErrorAction Stop
+
+    $jsonRaw = $SpikeResponse.Content
+
+    # Direkte Suche im vollständigen Download-Link / MSI-Dateinamen.
+    # Beispiel:
+    # SPIKE_APP_3_Win10_3.6.1_Global.msi
+    if ($jsonRaw -match 'SPIKE_APP_3_Win10_(\d+\.\d+\.\d+)_Global\.msi') {
         $SpikeVersion = $Matches[1]
-        Write-To-ProgramList -Name "Lego SPIKE App" -Version $SpikeVersion -Bemerkung "Quelle: Lego Education Release Notes"
+    }
+    # Flexibler Fallback, falls LEGO "3", "Win10" oder Zwischenbestandteile ändert:
+    elseif ($jsonRaw -match 'SPIKE_APP_\d+_Win\d+_(\d+\.\d+\.\d+)_Global\.msi') {
+        $SpikeVersion = $Matches[1]
+    }
+    # Noch generischer: jeder SPIKE-Download mit dreiteiliger Version vor _Global.msi
+    elseif ($jsonRaw -match 'SPIKE[^"]*?_(\d+\.\d+\.\d+)_Global\.msi') {
+        $SpikeVersion = $Matches[1]
+    }
+
+    if ($SpikeVersion) {
+        Write-To-ProgramList `
+            -Name "Lego SPIKE App" `
+            -Version $SpikeVersion `
+            -Bemerkung "Quelle: LEGO Education"
+
         Write-Host " [OK: $SpikeVersion]" -ForegroundColor Green
     }
     else {
         Write-Host " [FEHLER]" -ForegroundColor Red
-        Write-Warning " SPIKE Version konnte in den Release Notes nicht gefunden werden."
+        Write-Warning "SPIKE-App-Version konnte im JSON nicht gefunden werden."
     }
 }
 catch {
     Write-Host " [FEHLER]" -ForegroundColor Red
-    Write-Warning " Fehler bei Lego SPIKE: $($_.Exception.Message)"
+    Write-Warning "Fehler bei Lego SPIKE: $($_.Exception.Message)"
 }
 
 # --- 15. SMART NOTEBOOK (SMART TECH UPDATES) ---
