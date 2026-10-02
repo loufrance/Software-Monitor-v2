@@ -182,25 +182,35 @@ catch {
     Write-Warning " Fehler bei Java: $($_.Exception.Message)"
 }
 
-# --- 6. PDF24 CREATOR (OFFIZIELLER CHANGELOG) ---
+# --- 6. PDF24 CREATOR (DOWNLOAD-SEITE MIT PRÄZisem REGEX) ---
 try {
     Write-Host "PDF24 Creator..." -NoNewline
-    $PdfUrl = "https://creator.pdf24.org/changelog/de.html"
-    $PdfResponse = Invoke-WebRequest -Uri $PdfUrl -UseBasicParsing -UserAgent "Mozilla/5.0"
 
-    if ($PdfResponse.Content -match 'v(\d+\.\d+\.\d+)') {
+    $PdfVersion = $null
+    $PdfUrl = "https://tools.pdf24.org/de/creator"
+    
+    $PdfResponse = Invoke-WebRequest -Uri $PdfUrl -UseBasicParsing -UserAgent "Mozilla/5.0"
+    
+    # Suche nach Begriffen wie "Aktuelle Version 11.30.1" oder direkt im Versionsblock
+    if ($PdfResponse.Content -match 'Aktuelle Version\D*(\d+\.\d+\.\d+)') {
         $PdfVersion = $Matches[1]
-        Write-To-ProgramList -Name "PDF24 Creator" -Version $PdfVersion -Bemerkung "Offizieller Changelog"
+    }
+    # Fallback: Falls das Label nicht greift, suchen wir nach dem generellen Muster im Download-Bereich
+    elseif ($PdfResponse.Content -match 'PDF24 Creator (\d+\.\d+\.\d+)') {
+        $PdfVersion = $Matches[1]
+    }
+
+    if ($PdfVersion) {
+        Write-To-ProgramList -Name "PDF24 Creator" -Version $PdfVersion -Bemerkung "Offizielle Download-Seite"
         Write-Host " [OK: $PdfVersion]" -ForegroundColor Green
-    }
-    else {
+    } else {
         Write-Host " [FEHLER]" -ForegroundColor Red
-        Write-Warning " PDF24 Version konnte im Changelog nicht gefunden werden."
+        Write-Warning " PDF24 Version konnte auf der Download-Seite nicht gefunden werden."
     }
-}
-catch {
+
+} catch { 
     Write-Host " [FEHLER]" -ForegroundColor Red
-    Write-Warning " Fehler bei PDF24: $($_.Exception.Message)"
+    Write-Warning " Fehler bei PDF24: $($_.Exception.Message)" 
 }
 
 # --- 7. FOXIT PDF READER (CHOCOLATEY) ---
