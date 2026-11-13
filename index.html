@@ -371,6 +371,8 @@
     }
 
     function renderAction(status, program, aktuell, target) {
+      if (!normalizeValue(aktuell)) return '';
+
       if (status === 'UPDATE') {
         return `<button class="btn-accept" onclick="dispatchUpdate(event, '${escapeHtml(target)}', '${escapeHtml(program)}', '${escapeHtml(aktuell)}')">Übernehmen</button>`;
       }
