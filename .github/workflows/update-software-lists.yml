@@ -5,9 +5,14 @@ on:
     types:
       - update_server_csv
       - update_intune_csv
+      - update_bulk_csv
 
 permissions:
   contents: write
+
+concurrency:
+  group: update-software-lists
+  cancel-in-progress: false
 
 jobs:
   update-csv:
@@ -25,65 +30,135 @@ jobs:
       - name: CSV-Datei aktualisieren
         env:
           EVENT_TYPE: ${{ github.event.action }}
-          TARGET: ${{ github.event.client_payload.target }}
-          NAME: ${{ github.event.client_payload.name }}
-          VERSION: ${{ github.event.client_payload.version }}
+          PAYLOAD_JSON: ${{ toJSON(github.event.client_payload) }}
         run: |
           python <<'PY'
           import csv
+          import json
           import os
           from pathlib import Path
 
           event_type = os.environ["EVENT_TYPE"]
-          target = os.environ.get("TARGET", "").strip().lower()
-          name = os.environ["NAME"].strip()
-          version = os.environ["VERSION"].strip()
+          payload = json.loads(os.environ["PAYLOAD_JSON"])
 
           if event_type == "update_server_csv":
-              file_path = Path("ProgrammlisteIST.csv")
+              target = "server"
+              bulk = False
+              updates = [{
+                  "name": payload.get("name", ""),
+                  "version": payload.get("version", "")
+              }]
           elif event_type == "update_intune_csv":
-              file_path = Path("ProgrammlisteINTUNE.csv")
+              target = "intune"
+              bulk = False
+              updates = [{
+                  "name": payload.get("name", ""),
+                  "version": payload.get("version", "")
+              }]
+          elif event_type == "update_bulk_csv":
+              target = str(payload.get("target", "")).strip().lower()
+              bulk = True
+              updates = payload.get("updates")
           else:
               raise SystemExit(f"Unbekannter Event-Type: {event_type}")
 
+          paths = {
+              "server": Path("ProgrammlisteIST.csv"),
+              "intune": Path("ProgrammlisteINTUNE.csv")
+          }
+
+          if target not in paths:
+              raise SystemExit(f"Ungültiges Ziel: {target}")
+
+          if not isinstance(updates, list) or not updates:
+              raise SystemExit("Keine gültige Update-Liste übergeben.")
+
+          validated_updates = {}
+
+          for update in updates:
+              if not isinstance(update, dict):
+                  raise SystemExit("Ungültiger Eintrag in der Update-Liste.")
+
+              name = update.get("name")
+              version = update.get("version")
+
+              if not isinstance(name, str) or not isinstance(version, str):
+                  raise SystemExit("Programmname und Version müssen Text sein.")
+
+              name = name.strip()
+              version = version.strip()
+
+              if not name or not version:
+                  raise SystemExit("Programmname oder Version ist leer.")
+
+              validated_updates[name] = version
+
+          file_path = paths[target]
           rows = []
           fieldnames = ["Programm", "Version"]
 
           if file_path.exists():
               with file_path.open("r", encoding="utf-8-sig", newline="") as f:
-                  reader = csv.DictReader(f, delimiter=';')
+                  reader = csv.DictReader(f, delimiter=";")
+
                   if reader.fieldnames:
-                      fieldnames = reader.fieldnames
+                      fieldnames = list(reader.fieldnames)
+
                   rows = list(reader)
 
-          updated = False
-          for row in rows:
-              if row.get("Programm", "").strip() == name:
-                  row["Version"] = version
-                  updated = True
-                  break
+          for required in ["Programm", "Version"]:
+              if required not in fieldnames:
+                  fieldnames.append(required)
 
-          if not updated:
-              new_row = {key: "" for key in fieldnames}
-              if "Programm" not in new_row:
-                  new_row["Programm"] = ""
-              if "Version" not in new_row:
-                  new_row["Version"] = ""
-              new_row["Programm"] = name
-              new_row["Version"] = version
-              rows.append(new_row)
+          changed = 0
+          added = 0
+          skipped = 0
 
-          rows = sorted(rows, key=lambda r: r.get("Programm", "").lower())
+          for name, version in validated_updates.items():
+              matches = [
+                  row for row in rows
+                  if row.get("Programm", "").strip() == name
+              ]
 
-          with file_path.open("w", encoding="utf-8", newline="") as f:
-              writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';', quoting=csv.QUOTE_ALL)
-              writer.writeheader()
-              writer.writerows(rows)
+              if matches:
+                  for row in matches:
+                      old_version = row.get("Version", "").strip()
 
-          print(f"Aktualisiert: {file_path} | {name} -> {version}")
+                      if old_version != version:
+                          row["Version"] = version
+                          changed += 1
+                          print(f"Aktualisiert: {name} | {old_version} -> {version}")
+              elif bulk:
+                  skipped += 1
+                  print(f"Übersprungen, nicht in Ziel-CSV vorhanden: {name}")
+              else:
+                  new_row = {key: "" for key in fieldnames}
+                  new_row["Programm"] = name
+                  new_row["Version"] = version
+                  rows.append(new_row)
+                  added += 1
+                  print(f"Hinzugefügt: {name} | {version}")
+
+          if changed or added:
+              rows.sort(key=lambda row: row.get("Programm", "").lower())
+
+              with file_path.open("w", encoding="utf-8", newline="") as f:
+                  writer = csv.DictWriter(
+                      f,
+                      fieldnames=fieldnames,
+                      delimiter=";",
+                      quoting=csv.QUOTE_ALL
+                  )
+                  writer.writeheader()
+                  writer.writerows(rows)
+
+          print(
+              f"{file_path}: {changed} Einträge aktualisiert, "
+              f"{added} hinzugefügt, {skipped} übersprungen."
+          )
           PY
 
-      - name: Änderungen committen
+      - name: Änderungen committen und pushen
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -95,7 +170,6 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Update software list via dispatch"
-
-      - name: Änderungen pushen
-        run: git push
+          git commit -m "Softwarelisten via Dashboard aktualisiert"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push
