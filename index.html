@@ -398,15 +398,6 @@
       document.getElementById('serverUpToDateCount').textContent = String(serverUpToDate);
       document.getElementById('intuneUpToDateCount').textContent = String(intuneUpToDate);
       document.getElementById('progressBar').style.width = `${percent}%`;
-
-      const now = new Date();
-      document.getElementById('timestamp').textContent = now.toLocaleString('de-AT', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }) + ' Uhr';
     }
 
     function renderManagedCell(version, status, program, aktuell, target, cellClass) {
@@ -496,6 +487,42 @@
 
     window.dispatchUpdate = dispatchUpdate;
 
+    async function loadLastRun() {
+      const timestampElement = document.getElementById('timestamp');
+
+      try {
+        const response = await fetch('./last-run.txt', {
+          cache: 'no-store'
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `last-run.txt konnte nicht geladen werden (${response.status})`
+          );
+        }
+
+        const timestamp = (await response.text()).trim();
+        const lastRun = new Date(timestamp);
+
+        if (Number.isNaN(lastRun.getTime())) {
+          throw new Error('Ungültiger Zeitstempel in last-run.txt');
+        }
+
+        timestampElement.textContent = lastRun.toLocaleString('de-AT', {
+          timeZone: 'Europe/Vienna',
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }) + ' Uhr';
+      } catch (error) {
+        timestampElement.textContent = 'nicht verfügbar';
+        console.warn('Zeitpunkt des letzten Skriptlaufs:', error);
+      }
+    }
+
     async function init() {
       try {
         const [aktuellRows, serverRows, intuneRows] = await Promise.all([
@@ -516,6 +543,7 @@
       }
     }
 
+    loadLastRun();
     init();
   </script>
 </body>
