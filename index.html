@@ -226,6 +226,26 @@
       <div id="progressBar" class="progress-bar" style="width: 0%"></div>
     </div>
 
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px;">
+      <button
+        id="acceptAllServer"
+        class="btn-accept"
+        type="button"
+        onclick="dispatchBulkUpdate('server')"
+        disabled>
+        Alle für SERVER übernehmen (0)
+      </button>
+
+      <button
+        id="acceptAllIntune"
+        class="btn-add"
+        type="button"
+        onclick="dispatchBulkUpdate('intune')"
+        disabled>
+        Alle für INTUNE übernehmen (0)
+      </button>
+    </div>
+
     <table>
       <colgroup>
         <col style="width: 34%;">
@@ -257,6 +277,8 @@
       server: './ProgrammlisteIST.csv',
       intune: './ProgrammlisteINTUNE.csv'
     };
+
+    let dashboardRows = [];
 
     function normalizeValue(value) {
       return (value ?? '').toString().trim();
@@ -487,6 +509,123 @@
 
     window.dispatchUpdate = dispatchUpdate;
 
+    function getBulkUpdates(target) {
+      const statusKey = target === 'server'
+        ? 'serverStatus'
+        : 'intuneStatus';
+
+      return dashboardRows
+        .filter(row =>
+          row[statusKey] === 'UPDATE' &&
+          normalizeValue(row.aktuell) !== ''
+        )
+        .map(row => ({
+          name: row.programm,
+          version: row.aktuell
+        }));
+    }
+
+    function updateBulkButtons() {
+      for (const target of ['server', 'intune']) {
+        const button = document.getElementById(
+          target === 'server' ? 'acceptAllServer' : 'acceptAllIntune'
+        );
+
+        const count = getBulkUpdates(target).length;
+
+        button.textContent =
+          `Alle für ${target.toUpperCase()} übernehmen (${count})`;
+
+        button.disabled = count === 0;
+      }
+    }
+
+    async function dispatchBulkUpdate(target) {
+      if (!['server', 'intune'].includes(target)) return;
+
+      const updates = getBulkUpdates(target);
+      if (updates.length === 0) return;
+
+      const targetLabel = target.toUpperCase();
+
+      const confirmed = confirm(
+        `${updates.length} Programmversionen für ${targetLabel} übernehmen?\n\n` +
+        'Die Versionsstände in der CSV werden auf die angezeigten ' +
+        'AKTUELL-Versionen gesetzt.\n\n' +
+        'Neue Programme werden nicht hinzugefügt. ' +
+        'Es wird keine Software installiert.'
+      );
+
+      if (!confirmed) return;
+
+      let token = localStorage.getItem('github_token');
+
+      if (!token) {
+        token = (
+          prompt(
+            `Bitte gib deinen GitHub Personal Access Token für ${targetLabel} ein:`
+          ) || ''
+        ).trim();
+
+        if (!token) return;
+
+        localStorage.setItem('github_token', token);
+      }
+
+      const button = document.getElementById(
+        target === 'server' ? 'acceptAllServer' : 'acceptAllIntune'
+      );
+
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Wird gesendet...';
+
+      try {
+        const response = await fetch(
+          'https://api.github.com/repos/loufrance/Software-Monitor-v2/dispatches',
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + token,
+              'Accept': 'application/vnd.github.v3+json',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              event_type: 'update_bulk_csv',
+              client_payload: {
+                target,
+                updates
+              }
+            })
+          }
+        );
+
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            localStorage.removeItem('github_token');
+          }
+
+          throw new Error(`GitHub-Anfrage fehlgeschlagen (${response.status})`);
+        }
+
+        button.textContent =
+          `${targetLabel}: ${updates.length} Übernahmen angefordert`;
+
+        button.title =
+          'Der Workflow wurde angefordert. Nach dessen Abschluss die Seite neu laden.';
+      } catch (error) {
+        alert(
+          'Sammelübernahme konnte nicht angefordert werden:\n' +
+          error.message
+        );
+
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    }
+
+    window.dispatchBulkUpdate = dispatchBulkUpdate;
+    
     async function loadLastRun() {
       const timestampElement = document.getElementById('timestamp');
 
@@ -532,8 +671,12 @@
         ]);
 
         const rows = buildRows(aktuellRows, serverRows, intuneRows);
+
+        dashboardRows = rows;
+
         updateSummary(rows);
         renderTable(rows);
+        updateBulkButtons();
       } catch (error) {
         showError(error.message || 'Unbekannter Fehler beim Laden der CSV-Dateien.');
         document.getElementById('softwareTableBody').innerHTML = `
