@@ -2,6 +2,7 @@
 $AktuellPath = "ProgrammlisteAKTUELL.csv"
 $IstPath = "ProgrammlisteIST.csv"
 $IntunePath = "ProgrammlisteINTUNE.csv"
+$SkriptStart = [DateTimeOffset]::UtcNow
 $GlobalResults = New-Object System.Collections.Generic.List[PSCustomObject]
 
 function Write-To-ProgramList {
@@ -877,3 +878,7 @@ function Export-To-Csv {
 }
 
 Export-To-Csv
+
+# Zeitpunkt dieses Skriptlaufs für die HTML-Seite speichern
+$SkriptStart.ToString("o") |
+    Set-Content -Path "last-run.txt" -Encoding UTF8
