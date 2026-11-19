@@ -296,28 +296,37 @@ catch {
     Write-Warning " Fehler bei Worksheet Crafter: $($_.Exception.Message)"
 }
 
-# --- 10. PAINT.NET (CHOCOLATEY) ---
+# --- 10. PAINT.NET (OFFIZIELLE GITHUB-RELEASES) ---
+$PaintVersion = $null
+
 try {
     Write-Host "Paint.NET..." -NoNewline
-    $Matches = $null
-    $PaintVersion = $null
 
-    $PaintNetUrl = "https://community.chocolatey.org/packages/paint.net"
-    $PaintNetResponse = Invoke-WebRequest -Uri $PaintNetUrl -UseBasicParsing -UserAgent "Mozilla/5.0"
+    $PaintRelease = Invoke-RestMethod `
+        -Uri 'https://api.github.com/repos/paintdotnet/release/releases/latest' `
+        -Headers @{ Accept = 'application/vnd.github+json' } `
+        -UserAgent 'PaintNET-VersionCheck' `
+        -TimeoutSec 20 `
+        -ErrorAction Stop
 
-    if ($PaintNetResponse.Content -match 'paint.net\s+([\d\.]+)') {
-        $PaintVersion = $Matches[1]
-        Write-To-ProgramList -Name "Paint.NET" -Version $PaintVersion -Bemerkung "Quelle: Chocolatey"
-        Write-Host " [OK: $PaintVersion]" -ForegroundColor Green
+    # Akzeptiert z. B. v5.2, v5.2.1 oder 5.2.1, aber keine Test-Tags.
+    $PaintTag = [regex]::Match(
+        [string]$PaintRelease.tag_name,
+        '^v?([0-9]+(?:\.[0-9]+){1,3})$'
+    )
+
+    if (-not $PaintTag.Success) {
+        throw "Unerwarteter Release-Tag: '$($PaintRelease.tag_name)'"
     }
-    else {
-        Write-Host " [FEHLER]" -ForegroundColor Red
-        Write-Warning " Paint.NET Version konnte bei Chocolatey nicht gefunden werden."
-    }
+
+    $PaintVersion = $PaintTag.Groups[1].Value
+
+    Write-To-ProgramList -Name "Paint.NET" -Version $PaintVersion -Bemerkung "Quelle: GitHub (Paint.NET)"
+    Write-Host " [OK: $PaintVersion]" -ForegroundColor Green
 }
 catch {
     Write-Host " [FEHLER]" -ForegroundColor Red
-    Write-Warning " Fehler bei Paint.NET: $($_.Exception.Message)"
+    Write-Warning "Fehler bei Paint.NET: $($_.Exception.Message)"
 }
 
 # --- 11. SHOTCUT (RELEASE NOTES Liste) ---
